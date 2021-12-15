@@ -2,8 +2,14 @@ project('pfsshell', 'c', default_options: ['optimization=0', 'debug=true', 'warn
 
 add_global_arguments(['-Wno-unused-value', '-Wno-format', '-Wno-format-security', '-Wno-unused-function', '-Wno-unused-variable'], language : 'c')
 
+
 cc = meson.get_compiler('c')
 host_system = host_machine.system()
+
+#Build libdokanfuse using CMake
+run_command('mkdir', 'dokany/dokan_fuse/build')
+run_command('cmake', '-G','MinGW Makefiles',  '-Sdokany/dokan_fuse' , '-Bdokany/dokan_fuse/build')
+run_command('mingw32-make','-C','dokany/dokan_fuse/build')
 
 libfakeps2sdk_proj = subproject('fakeps2sdk')
 libfakeps2sdk_noinclude_dep = libfakeps2sdk_proj.get_variable('libfakeps2sdk_noinclude_dep')
@@ -19,6 +25,8 @@ libiomanX_dep = libiomanX_proj.get_variable('libiomanX_dep')
 
 libhdlfs_proj = subproject('hdlfs')
 libhdlfs_dep = libhdlfs_proj.get_variable('libhdlfs_dep')
+
+
 
 pfsshell_src = [
 	'startup.c',
@@ -51,7 +59,9 @@ pfsshell = executable('pfsshell', sources: pfsshell_src, c_args: pfsshell_cflags
 libps2hdd = shared_library('ps2hdd', sources: pfsshell_src, c_args: pfsshell_cflags, link_args: pfsshell_ldflags, dependencies: pfsshell_dependson, install: true)
 
 if get_option('enable_pfsfuse') == true
-libfuse_dep = dependency('fuse')
+libfuse_include = include_directories(['dokany/dokan_fuse/include'])
+libfuse_dep = cc.find_library('libdokanfuse1.dll',
+               dirs : [meson.current_source_dir() +'/dokany/dokan_fuse/build'])
 pfsfuse_src = [
 	'iomanx_adapter.c',
 ]
@@ -60,9 +70,9 @@ if host_system == 'linux'
 	pfsfuse_cflags += ['-pthread']
 endif
 pfsfuse_cflags += ['-D_FILE_OFFSET_BITS=64']
-pfsfuse_ldflags = []
+pfsfuse_ldflags = ['-static']
 if host_system == 'windows' and cc.get_id() != 'msvc' and cc.get_id() != 'clang-cl'
-	pfsfuse_ldflags += ['-static']
+
 endif
 if host_system == 'linux'
 	pfsfuse_ldflags += ['-lpthread']
@@ -74,7 +84,7 @@ pfsfuse_dependson = [
 	libiomanX_dep,
 	libfuse_dep,
 ]
-pfsfuse = executable('pfsfuse', sources: pfsfuse_src, c_args: pfsfuse_cflags, link_args: pfsfuse_ldflags, dependencies: pfsfuse_dependson, install: true)
+pfsfuse = executable('pfsfuse', sources: pfsfuse_src, include_directories : libfuse_include,c_args: pfsfuse_cflags, link_args: pfsfuse_ldflags, dependencies: pfsfuse_dependson, install: true)
 endif
 
 if host_system == 'windows' and cc.get_id() != 'msvc' and cc.get_id() != 'clang-cl'

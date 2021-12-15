@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#define timegm _mkgmtime
+
 #define FUSE_USE_VERSION 26
 #include <fuse.h>
 
@@ -91,7 +93,7 @@ static void convert_time_to_iomanx(unsigned char *iomanx_time, const time_t *pos
     time_t rawtime = *posix_time;
     // convert JST->UTC
     rawtime -= (9 * 60 * 60);
-    gmtime_r(&rawtime, &timeinfo);
+    gmtime_s(&timeinfo,&rawtime);
     iomanx_time[0] = 0;
     iomanx_time[1] = timeinfo.tm_sec;
     iomanx_time[2] = timeinfo.tm_min;
@@ -111,10 +113,10 @@ static void convert_mode_to_posix(mode_t *posix_mode, const unsigned int *iomanx
     if (FIO_S_ISREG(*iomanx_mode)) {
         *posix_mode |= S_IFREG;
     }
+#if 0
     if (FIO_S_ISLNK(*iomanx_mode)) {
         *posix_mode |= S_IFLNK;
     }
-#if 0
     if (*iomanx_mode & FIO_S_IRUSR) {
         *posix_mode |= S_IRUSR;
     }
@@ -142,6 +144,15 @@ static void convert_mode_to_posix(mode_t *posix_mode, const unsigned int *iomanx
     if (*iomanx_mode & FIO_S_IXOTH) {
         *posix_mode |= S_IXOTH;
     }
+    if (*iomanx_mode & FIO_S_ISUID) {
+        *posix_mode |= S_ISUID;
+    }
+    if (*iomanx_mode & FIO_S_ISGID) {
+        *posix_mode |= S_ISGID;
+    }
+    if (*iomanx_mode & FIO_S_ISVTX) {
+        *posix_mode |= S_ISVTX;
+    }
 #else
     if (*iomanx_mode & (FIO_S_IRUSR | FIO_S_IRGRP | FIO_S_IROTH)) {
         *posix_mode |= S_IRUSR | S_IRGRP | S_IROTH;
@@ -153,15 +164,7 @@ static void convert_mode_to_posix(mode_t *posix_mode, const unsigned int *iomanx
         *posix_mode |= S_IXUSR | S_IXGRP | S_IXOTH;
     }
 #endif
-    if (*iomanx_mode & FIO_S_ISUID) {
-        *posix_mode |= S_ISUID;
-    }
-    if (*iomanx_mode & FIO_S_ISGID) {
-        *posix_mode |= S_ISGID;
-    }
-    if (*iomanx_mode & FIO_S_ISVTX) {
-        *posix_mode |= S_ISVTX;
-    }
+ 
 }
 
 static void convert_mode_to_iomanx(unsigned int *iomanx_mode, const mode_t *posix_mode)
@@ -173,10 +176,11 @@ static void convert_mode_to_iomanx(unsigned int *iomanx_mode, const mode_t *posi
     if (S_ISREG(*posix_mode)) {
         *iomanx_mode |= FIO_S_IFREG;
     }
+
+#if 0
     if (S_ISLNK(*posix_mode)) {
         *iomanx_mode |= FIO_S_IFLNK;
     }
-#if 0
     if (*posix_mode & S_IRUSR) {
         *iomanx_mode |= FIO_S_IRUSR;
     }
@@ -204,6 +208,15 @@ static void convert_mode_to_iomanx(unsigned int *iomanx_mode, const mode_t *posi
     if (*posix_mode & S_IXOTH) {
         *iomanx_mode |= FIO_S_IXOTH;
     }
+    if (*posix_mode & S_ISUID) {
+        *iomanx_mode |= FIO_S_ISUID;
+    }
+    if (*posix_mode & S_ISGID) {
+        *iomanx_mode |= FIO_S_ISGID;
+    }
+    if (*posix_mode & S_ISVTX) {
+        *iomanx_mode |= FIO_S_ISVTX;
+    }
 #else
     if (*posix_mode & (S_IRUSR | S_IRGRP | S_IROTH)) {
         *iomanx_mode |= FIO_S_IRUSR | FIO_S_IRGRP | FIO_S_IROTH;
@@ -215,18 +228,10 @@ static void convert_mode_to_iomanx(unsigned int *iomanx_mode, const mode_t *posi
         *iomanx_mode |= FIO_S_IXUSR | FIO_S_IXGRP | FIO_S_IXOTH;
     }
 #endif
-    if (*posix_mode & S_ISUID) {
-        *iomanx_mode |= FIO_S_ISUID;
-    }
-    if (*posix_mode & S_ISGID) {
-        *iomanx_mode |= FIO_S_ISGID;
-    }
-    if (*posix_mode & S_ISVTX) {
-        *iomanx_mode |= FIO_S_ISVTX;
-    }
+
 }
 
-static void convert_stat_to_posix(struct stat *posix_stat, const iox_stat_t *iomanx_stat)
+static void convert_stat_to_posix(struct FUSE_STAT *posix_stat, const iox_stat_t *iomanx_stat)
 {
     memset(posix_stat, 0, sizeof(*posix_stat));
     posix_stat->st_size = iomanx_stat->size;
@@ -237,16 +242,16 @@ static void convert_stat_to_posix(struct stat *posix_stat, const iox_stat_t *iom
 #if 0
     posix_stat->st_attr = iomanx_stat->attr;
 #endif
-    convert_time_to_posix(&(posix_stat->st_ctime), iomanx_stat->ctime);
-    convert_time_to_posix(&(posix_stat->st_atime), iomanx_stat->atime);
-    convert_time_to_posix(&(posix_stat->st_mtime), iomanx_stat->mtime);
+    convert_time_to_posix(&(posix_stat->st_ctim), iomanx_stat->ctime);
+    convert_time_to_posix(&(posix_stat->st_atim), iomanx_stat->atime);
+    convert_time_to_posix(&(posix_stat->st_mtim), iomanx_stat->mtime);
 #if 0
     posix_stat->st_uid = iomanx_stat->private_0;
     posix_stat->st_gid = iomanx_stat->private_1;
 #endif
 }
 
-static void convert_stat_to_iomanx(iox_stat_t *iomanx_stat, const struct stat *posix_stat)
+static void convert_stat_to_iomanx(iox_stat_t *iomanx_stat, const struct FUSE_STAT *posix_stat)
 {
     memset(iomanx_stat, 0, sizeof(*iomanx_stat));
     iomanx_stat->size = posix_stat->st_size & 0xffffffff;
@@ -257,9 +262,9 @@ static void convert_stat_to_iomanx(iox_stat_t *iomanx_stat, const struct stat *p
 #if 0
     posix_stat->st_attr = iomanx_stat->attr;
 #endif
-    convert_time_to_iomanx(iomanx_stat->ctime, &(posix_stat->st_ctime));
-    convert_time_to_iomanx(iomanx_stat->atime, &(posix_stat->st_atime));
-    convert_time_to_iomanx(iomanx_stat->mtime, &(posix_stat->st_mtime));
+    convert_time_to_iomanx(iomanx_stat->ctime, &(posix_stat->st_ctim));
+    convert_time_to_iomanx(iomanx_stat->atime, &(posix_stat->st_atim));
+    convert_time_to_iomanx(iomanx_stat->mtime, &(posix_stat->st_mtim));
 #if 0
     posix_stat->st_uid = iomanx_stat->private_0;
     posix_stat->st_gid = iomanx_stat->private_1;
@@ -295,9 +300,11 @@ static int iomanx_adapter_open(const char *path, struct fuse_file_info *fi)
     if ((fi->flags & O_ACCMODE) == O_RDWR) {
         flags |= IOMANX_O_RDWR;
     }
+#if 0
     if (fi->flags & O_NONBLOCK) {
         flags |= IOMANX_O_NBLOCK;
     }
+#endif
     if (fi->flags & O_APPEND) {
         flags |= IOMANX_O_APPEND;
     }
@@ -336,9 +343,11 @@ static int iomanx_adapter_create(const char *path, mode_t mode, struct fuse_file
     if ((fi->flags & O_ACCMODE) == O_RDWR) {
         flags |= IOMANX_O_RDWR;
     }
+#if 0
     if (fi->flags & O_NONBLOCK) {
         flags |= IOMANX_O_NBLOCK;
     }
+#endif
     if (fi->flags & O_APPEND) {
         flags |= IOMANX_O_APPEND;
     }
@@ -513,7 +522,7 @@ static int iomanx_adapter_readdir(const char *path, void *buf, fuse_fill_dir_t f
     }
 
     while ((res = iomanx_dread(dp, &de)) && (res != -1)) {
-        struct stat st;
+        struct FUSE_STAT st;
         convert_stat_to_posix(&st, &(de.stat));
         if (filler(buf, de.name, &st, 0))
             break;
@@ -524,7 +533,7 @@ static int iomanx_adapter_readdir(const char *path, void *buf, fuse_fill_dir_t f
 }
 
 
-static int iomanx_adapter_getattr(const char *path, struct stat *stbuf)
+static int iomanx_adapter_getattr(const char *path, struct FUSE_STAT *stbuf)
 {
     int res;
     iox_stat_t iomanx_stat;
@@ -558,7 +567,7 @@ static int iomanx_adapter_chmod(const char *path, mode_t mode)
 {
     int res;
     iox_stat_t iomanx_stat;
-    struct stat posix_stat;
+    struct FUSE_STAT posix_stat;
     posix_stat.st_mode = mode;
     convert_stat_to_iomanx(&iomanx_stat, &posix_stat);
 
@@ -720,11 +729,12 @@ int main(int argc, char *argv[])
     options.device = strdup("");
     options.partition = strdup("__common");
     options.maxopen = strdup("32");
-    options.numbuffers = strdup("127");
+    options.numbuffers = strdup("127"); 
 
     /* Parse options */
     if (fuse_opt_parse(&args, &options, option_spec, iomanx_adapter_opt_proc) == -1)
         return 1;
+
 
     if (strlen(options.device) == 0 || options.show_help) {
         show_help(argv[0]);
@@ -738,9 +748,14 @@ int main(int argc, char *argv[])
     extern char atad_device_path[256];
     strncpy(atad_device_path, options.device, sizeof(atad_device_path));
 
+
+
+
     /* mandatory */
     int result = _init_apa(0, NULL);
+
     if (result < 0) {
+
         fprintf(stderr, "(!) init_apa: failed with %d (%s)\n", result,
                 strerror(-result));
         return 1;
@@ -778,12 +793,14 @@ int main(int argc, char *argv[])
     }
     iomanx_close(fd);
 
+    
+
     result = iomanx_mount(IOMANX_MOUNT_POINT, mount_point, 0, NULL, 0);
     if (result < 0) {
         fprintf(stderr, "(!) %s: %s.\n", mount_point, strerror(-result));
         return 1;
     }
-
+    
     ret = fuse_main(args.argc, args.argv, &iomanx_adapter_operations, NULL);
     fuse_opt_free_args(&args);
     return ret;
